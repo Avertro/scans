@@ -17,7 +17,8 @@ var output = require('./postprocess/output.js')
  */
 var engine = function (AWSConfig, AzureConfig, GitHubConfig, OracleConfig, GoogleConfig, settings) {
     // Determine if scan is a compliance scan
-    var complianceArgs = process.argv
+    var argv = settings && settings.argv || process.argv;
+    var complianceArgs = argv
         .filter(function (arg) {
             return arg.startsWith('--compliance=')
         })
@@ -32,18 +33,20 @@ var engine = function (AWSConfig, AzureConfig, GitHubConfig, OracleConfig, Googl
         console.log('       --compliance=cis');
         console.log('       --compliance=cis-1');
         console.log('       --compliance=cis-2');
-        process.exit();
+        if (!settings.inlineMode){
+            process.exit();
+        }
     }
 
     // Initialize any suppression rules based on the the command line arguments
-    var suppressionFilter = suppress.create(process.argv)
+    var suppressionFilter = suppress.create(argv)
 
     // Initialize the output handler
-    var outputHandler = output.create(process.argv)
+    var outputHandler = output.create(argv)
 
     // The original cloudsploit always has a 0 exit code. With this option, we can have
     // the exit code depend on the results (useful for integration with CI systems)
-    var useStatusExitCode = process.argv.includes('--statusExitCode')
+    var useStatusExitCode = argv.includes('--statusExitCode')
 
     // Configure Service Provider Collectors
     var serviceProviders = {
@@ -108,7 +111,7 @@ var engine = function (AWSConfig, AzureConfig, GitHubConfig, OracleConfig, Googl
 
                 if (sp == 'github' && !serviceProviderConfig.organization &&
                     plugin.types.indexOf('user') === -1) continue;
-                
+
                 // Skip if our compliance set says don't run the rule
                 if (!compliance.includes(spp, plugin)) continue;
 
@@ -190,9 +193,12 @@ var engine = function (AWSConfig, AzureConfig, GitHubConfig, OracleConfig, Googl
         });
     }, function (err, results) {
         // console.log(JSON.stringify(collection, null, 2));
-        outputHandler.close()
-        if (useStatusExitCode) {
+        const outputResults = outputHandler.close();
+        if (useStatusExitCode && !settings.inlineMode) {
             process.exitCode = Math.max(results)
+        }
+        if (settings.callback){
+            settings.callback(err, outputResults);
         }
         console.log('Done');
     });

@@ -54,13 +54,13 @@ module.exports = {
 
         return {
             writer: writer,
-        
+
             startCompliance: function(plugin, pluginKey, compliance) {
             },
-        
+
             endCompliance: function(plugin, pluginKey, compliance) {
             },
-        
+
             writeResult: function (result, plugin, pluginKey) {
                 var statusWord;
                 if (result.status === 0) {
@@ -72,13 +72,13 @@ module.exports = {
                 } else {
                     statusWord = 'UNKNOWN';
                 }
-        
+
                 this.writer.write([plugin.category, plugin.title,
                                    (result.resource || 'N/A'),
                                    (result.region || 'Global'),
                                    statusWord, result.message]);
             },
-        
+
             close: function () {
                 this.writer.end();
             }
@@ -94,13 +94,13 @@ module.exports = {
       var results = [];
       return {
           stream: stream,
-      
+
           startCompliance: function(plugin, pluginKey, compliance) {
           },
-      
+
           endCompliance: function(plugin, pluginKey, compliance) {
           },
-      
+
           writeResult: function (result, plugin, pluginKey) {
               var statusWord;
               if (result.status === 0) {
@@ -112,7 +112,7 @@ module.exports = {
               } else {
                   statusWord = 'UNKNOWN';
               }
-              
+
               results.push({
                 plugin: pluginKey,
                 category: plugin.category,
@@ -123,28 +123,70 @@ module.exports = {
                 message: result.message
               })
           },
-      
+
           close: function () {
-            this.stream.write(JSON.stringify(results));              
+            this.stream.write(JSON.stringify(results));
             this.stream.end();
+          }
+      }
+  },
+    /**
+     * Creates an output handler that returns an array - to be used for in-process usage of cloudsploit without outputting to fs.
+     * close method returns the array. Array can be accessed any time with output.results
+     */
+    createJSArray: function () {
+      var results = [];
+      return {
+          results: results,
+          startCompliance: function(plugin, pluginKey, compliance) {
+          },
+
+          endCompliance: function(plugin, pluginKey, compliance) {
+          },
+
+          writeResult: function (result, plugin, pluginKey) {
+              var statusWord;
+              if (result.status === 0) {
+                  statusWord = 'OK';
+              } else if (result.status === 1) {
+                  statusWord = 'WARN';
+              } else if (result.status === 2) {
+                  statusWord = 'FAIL';
+              } else {
+                  statusWord = 'UNKNOWN';
+              }
+
+              results.push({
+                plugin: pluginKey,
+                category: plugin.category,
+                title: plugin.title,
+                resource: result.resource || 'N/A',
+                region: result.region || 'Global',
+                status: statusWord,
+                message: result.message
+              })
+          },
+
+          close: function () {
+            return results;
           }
       }
   },
 
     /***
      * Creates an output handler that writes output in the JUnit XML format.
-     * 
+     *
      * This constructs the XML directly, rather than through a library so that
      * we don't need to pull in another NPM dependency. This keeps things
      * simple.
-     * 
+     *
      * @param {fs.WriteStream} stream The stream to write to or an object that
      * obeys the writeable stream contract.
      */
     createJunit: function (stream) {
         return {
             stream: stream,
-        
+
             /**
              * The test suites are how we represent result - each test suite
              * maps to one plugin (more specifically the plugin key) so that
@@ -154,10 +196,10 @@ module.exports = {
 
             startCompliance: function(plugin, pluginKey, compliance) {
             },
-        
+
             endCompliance: function(plugin, pluginKey, compliance) {
             },
-        
+
             /**
              * Adds the result to be written to the output file.
              */
@@ -204,7 +246,7 @@ module.exports = {
                     error: error
                 });
             },
-        
+
             /**
              * Closes the output handler. For this JUnit output handler, all of
              * the work happens on close since we need to know information
@@ -221,7 +263,7 @@ module.exports = {
                 }
 
                 this.stream.write('</testsuites>\n');
-                
+
                 this.stream.end();
             },
 
@@ -262,7 +304,7 @@ module.exports = {
                     } else {
                         this.stream.write('/>\n');
                     }
-                    
+
                 }
 
                 // Same thing with properties above - this just needs to exist
@@ -280,10 +322,10 @@ module.exports = {
      * in the command line format. If multiple output handlers are specified
      * in the arguments, then constructs a unified view so that it appears that
      * there is only one output handler.
-     * 
+     *
      * @param {string[]} argv Array of command line arguments (may contain
      * arguments that are not relevant to constructing output handlers).
-     * 
+     *
      * @return A object that obeys the output handler contract. This may be
      * one output handler or one that forwards function calls to a group of
      * output handlers.
@@ -314,6 +356,13 @@ module.exports = {
         if (addJsonOutput) {
             var stream = fs.createWriteStream(addJsonOutput.substr(7));
             outputs.push(this.createJson(stream));
+        }
+
+        var addJSArrayOutput = argv.find(function (arg) {
+            return arg.startsWith('--jsarray');
+        })
+        if (addJSArrayOutput) {
+            outputs.push(this.createJSArray());
         }
 
         var addConsoleOutput = argv.find(function (arg) {
@@ -356,9 +405,14 @@ module.exports = {
             },
 
             close: function () {
+                var results = [];
                 for (var output of outputs) {
-                    output.close();
+                    var outputResults = output.close();
+                    if (outputResults){
+                        results = results.concat(outputResults);
+                    }
                 }
+                return results;
             }
         }
     }
