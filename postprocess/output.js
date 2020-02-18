@@ -114,13 +114,17 @@ module.exports = {
               }
 
               results.push({
-                plugin: pluginKey,
-                category: plugin.category,
-                title: plugin.title,
-                resource: result.resource || 'N/A',
-                region: result.region || 'Global',
-                status: statusWord,
-                message: result.message
+                  plugin: pluginKey,
+                  category: plugin.category,
+                  title: plugin.title,
+                  description: plugin.description,
+                  more_info: plugin.more_info,
+                  recommended_action: plugin.recommended_action,
+                  link: plugin.link,
+                  resource: result.resource || 'N/A',
+                  region: result.region || 'Global',
+                  status: statusWord,
+                  statusCode: result.status,
               })
           },
 
@@ -160,10 +164,14 @@ module.exports = {
                 plugin: pluginKey,
                 category: plugin.category,
                 title: plugin.title,
+                description: plugin.description,
+                more_info: plugin.more_info,
+                recommended_action: plugin.recommended_action,
+                link: plugin.link,
                 resource: result.resource || 'N/A',
                 region: result.region || 'Global',
                 status: statusWord,
-                message: result.message
+                statusCode: result.status,
               })
           },
 
